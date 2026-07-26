@@ -1,0 +1,191 @@
+name: Publish Office Templates
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version in the form vMAJOR.MINOR.PATCH"
+        required: true
+        type: string
+      release_title:
+        description: "Optional release title"
+        required: false
+        type: string
+
+  workflow_call:
+    inputs:
+      version:
+        description: "Release version in the form vMAJOR.MINOR.PATCH"
+        required: true
+        type: string
+      release_title:
+        description: "Optional release title"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Package and publish templates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate release version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must have the form vMAJOR.MINOR.PATCH, such as v1.0.0."
+            exit 1
+          fi
+
+      - name: Validate release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -d releases ]]; then
+            echo "::error::The releases/ directory does not exist."
+            exit 1
+          fi
+
+          mapfile -d '' RELEASE_FILES < <(
+            find releases -mindepth 1 -maxdepth 1 -type f -print0
+          )
+
+          if (( ${#RELEASE_FILES[@]} == 0 )); then
+            echo "::error::The releases/ directory contains no files."
+            exit 1
+          fi
+
+          if find releases -mindepth 1 -type d -print -quit | grep -q .; then
+            echo "::error::The releases/ directory must be flat and must not contain subdirectories."
+            exit 1
+          fi
+
+          invalid=0
+
+          echo "Templates to be released:"
+
+          while IFS= read -r -d '' file; do
+            filename="${file#releases/}"
+
+            case "${filename,,}" in
+              *.dotx|*.dotm|*.potx|*.potm|*.xltx|*.xltm)
+                printf '  %s\n' "${filename}"
+                ;;
+              *)
+                echo "::error file=${file}::Unsupported release file: ${filename}"
+                invalid=1
+                ;;
+            esac
+          done < <(
+            find releases -mindepth 1 -maxdepth 1 -type f -print0 |
+              sort -z
+          )
+
+          if (( invalid != 0 )); then
+            echo "::error::Only deployment-ready Microsoft Office template files may be released."
+            exit 1
+          fi
+
+      - name: Confirm that version is unused
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if git ls-remote \
+            --exit-code \
+            --tags \
+            origin \
+            "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Git tag ${VERSION} already exists."
+            exit 1
+          fi
+
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "::error::GitHub Release ${VERSION} already exists."
+            exit 1
+          fi
+
+      - name: Create release archive
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          archive_name="microsoft-office-templates-${VERSION}.zip"
+          archive_path="${RUNNER_TEMP}/${archive_name}"
+
+          python3 - "${archive_path}" <<'PYTHON'
+          from pathlib import Path
+          from zipfile import ZIP_DEFLATED, ZipFile
+          import sys
+
+          archive_path = Path(sys.argv[1])
+          release_directory = Path("releases")
+
+          files = sorted(
+              path
+              for path in release_directory.iterdir()
+              if path.is_file()
+          )
+
+          with ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as archive:
+              for path in files:
+                  archive.write(path, arcname=path.name)
+          PYTHON
+
+          sha256sum "${archive_path}" > "${archive_path}.sha256"
+
+          echo "ARCHIVE_NAME=${archive_name}" >> "${GITHUB_ENV}"
+          echo "ARCHIVE_PATH=${archive_path}" >> "${GITHUB_ENV}"
+          echo "CHECKSUM_PATH=${archive_path}.sha256" >> "${GITHUB_ENV}"
+
+      - name: Determine release title
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          REQUESTED_TITLE: ${{ inputs.release_title }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${REQUESTED_TITLE}" ]]; then
+            release_title="${REQUESTED_TITLE}"
+          else
+            release_title="Microsoft Office Templates ${VERSION}"
+          fi
+
+          {
+            echo "RELEASE_TITLE<<EOF"
+            echo "${release_title}"
+            echo "EOF"
+          } >> "${GITHUB_ENV}"
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          gh release create "${VERSION}" \
+            "${ARCHIVE_PATH}#${ARCHIVE_NAME}" \
+            "${CHECKSUM_PATH}#${ARCHIVE_NAME}.sha256" \
+            --target "${GITHUB_SHA}" \
+            --title "${RELEASE_TITLE}" \
+            --generate-notes \
+            --latest
