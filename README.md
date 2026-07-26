@@ -47,11 +47,18 @@ Clone your new repository to your computer and change into its top-level directo
 
 ## Step 3 — Add the `microsoft-office-template` repository as a Git submodule
 
-From the top-level of your repository, add the public repository as a Git submodule.
+From the top-level directory of your repository, add the public repository as a Git submodule.
+
+### HTTPS (recommended)
 
 ```bash
-git submodule add \
-    https://github.com/<owner>/microsoft-office-template.git
+git submodule add https://github.com/SteveAmerige/microsoft-office-template.git
+```
+
+### SSH
+
+```bash
+git submodule add git@github.com:SteveAmerige/microsoft-office-template.git
 ```
 
 Git creates the submodule directory:
