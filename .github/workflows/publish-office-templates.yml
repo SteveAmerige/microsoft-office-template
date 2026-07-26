@@ -57,34 +57,33 @@ jobs:
             exit 1
           fi
 
-          mapfile -d '' RELEASE_FILES < <(
-            find releases -mindepth 1 -maxdepth 1 -type f -print0
-          )
-
-          if (( ${#RELEASE_FILES[@]} == 0 )); then
-            echo "::error::The releases/ directory contains no files."
-            exit 1
-          fi
-
           if find releases -mindepth 1 -type d -print -quit | grep -q .; then
             echo "::error::The releases/ directory must be flat and must not contain subdirectories."
             exit 1
           fi
 
-          invalid=0
+          template_count=0
+          invalid_count=0
 
           echo "Templates to be released:"
 
           while IFS= read -r -d '' file; do
             filename="${file#releases/}"
+            lowercase_filename="${filename,,}"
 
-            case "${filename,,}" in
+            case "${lowercase_filename}" in
+              *.md)
+                printf '  Ignoring documentation: %s\n' "${filename}"
+                ;;
+
               *.dotx|*.dotm|*.potx|*.potm|*.xltx|*.xltm)
                 printf '  %s\n' "${filename}"
+                ((template_count += 1))
                 ;;
+
               *)
                 echo "::error file=${file}::Unsupported release file: ${filename}"
-                invalid=1
+                ((invalid_count += 1))
                 ;;
             esac
           done < <(
@@ -92,8 +91,13 @@ jobs:
               sort -z
           )
 
-          if (( invalid != 0 )); then
-            echo "::error::Only deployment-ready Microsoft Office template files may be released."
+          if (( invalid_count != 0 )); then
+            echo "::error::The releases/ directory may contain only Microsoft Office template files and Markdown documentation."
+            exit 1
+          fi
+
+          if (( template_count == 0 )); then
+            echo "::error::The releases/ directory contains no deployment-ready Microsoft Office template files."
             exit 1
           fi
 
@@ -137,14 +141,33 @@ jobs:
           archive_path = Path(sys.argv[1])
           release_directory = Path("releases")
 
-          files = sorted(
+          allowed_extensions = {
+              ".dotx",
+              ".dotm",
+              ".potx",
+              ".potm",
+              ".xltx",
+              ".xltm",
+          }
+
+          template_files = sorted(
               path
               for path in release_directory.iterdir()
               if path.is_file()
+              and path.suffix.lower() in allowed_extensions
           )
 
-          with ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as archive:
-              for path in files:
+          if not template_files:
+              raise SystemExit(
+                  "No deployment-ready Microsoft Office template files were found."
+              )
+
+          with ZipFile(
+              archive_path,
+              "w",
+              compression=ZIP_DEFLATED,
+          ) as archive:
+              for path in template_files:
                   archive.write(path, arcname=path.name)
           PYTHON
 
