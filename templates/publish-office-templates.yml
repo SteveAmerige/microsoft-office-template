@@ -1,0 +1,23 @@
+name: Publish Office Templates
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version in the form vMAJOR.MINOR.PATCH"
+        required: true
+        type: string
+      release_title:
+        description: "Optional release title"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    uses: SteveAmerige/microsoft-office-template/.github/workflows/publish-office-templates.yml@main
+    with:
+      version: ${{ inputs.version }}
+      release_title: ${{ inputs.release_title }}
