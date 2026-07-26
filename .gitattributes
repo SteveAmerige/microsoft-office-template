@@ -1,0 +1,26 @@
+# Microsoft Office documents
+*.doc  binary
+*.docx binary
+*.dot  binary
+*.dotx binary
+
+# Microsoft Office presentations
+*.ppt  binary
+*.pptx binary
+*.potx binary
+
+# Microsoft Office spreadsheets
+*.xls  binary
+*.xlsx binary
+*.xltx binary
+
+# PDF documents
+*.pdf  binary
+
+# Images
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.svg  text
+*.ico  binary
