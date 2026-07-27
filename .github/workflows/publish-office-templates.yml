@@ -130,7 +130,36 @@ jobs:
         run: |
           set -euo pipefail
 
-          archive_name="microsoft-office-templates-${VERSION}.zip"
+          release_name="microsoft-office-templates"
+
+          if [[ -f template-release-name.txt ]]; then
+            mapfile -t release_name_lines < template-release-name.txt
+
+            if (( ${#release_name_lines[@]} != 1 )); then
+              echo "::error file=template-release-name.txt::The file must contain exactly one line."
+              exit 1
+            fi
+
+            release_name="${release_name_lines[0]}"
+
+            # Remove leading and trailing whitespace.
+            release_name="$(
+              printf '%s' "${release_name}" |
+                sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+            )"
+
+            if [[ -z "${release_name}" ]]; then
+              echo "::error file=template-release-name.txt::The release name must not be empty."
+              exit 1
+            fi
+
+            if [[ ! "${release_name}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+              echo "::error file=template-release-name.txt::The release name may contain only letters, numbers, periods, underscores, and hyphens, and must begin with a letter or number."
+              exit 1
+            fi
+          fi
+
+          archive_name="${release_name}-${VERSION}.zip"
           archive_path="${RUNNER_TEMP}/${archive_name}"
 
           python3 - "${archive_path}" <<'PYTHON'
@@ -171,11 +200,17 @@ jobs:
                   archive.write(path, arcname=path.name)
           PYTHON
 
-          sha256sum "${archive_path}" > "${archive_path}.sha256"
+          checksum_path="${archive_path}.sha256"
+
+          (
+            cd "$(dirname "${archive_path}")"
+            sha256sum "$(basename "${archive_path}")" \
+              > "$(basename "${checksum_path}")"
+          )
 
           echo "ARCHIVE_NAME=${archive_name}" >> "${GITHUB_ENV}"
           echo "ARCHIVE_PATH=${archive_path}" >> "${GITHUB_ENV}"
-          echo "CHECKSUM_PATH=${archive_path}.sha256" >> "${GITHUB_ENV}"
+          echo "CHECKSUM_PATH=${checksum_path}" >> "${GITHUB_ENV}"
 
       - name: Determine release title
         shell: bash

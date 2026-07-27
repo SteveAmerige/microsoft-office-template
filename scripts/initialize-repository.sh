@@ -102,6 +102,10 @@ copy_if_missing \
     "${PUBLIC_ROOT}/.gitignore" \
     "${BASE}/.gitignore"
 
+copy_if_missing \
+    "${PUBLIC_ROOT}/templates/template-release-name.txt" \
+    "${BASE}/template-release-name.txt"
+
 # Project-managed files are refreshed whenever this script runs.
 copy_managed_file \
     "${PUBLIC_ROOT}/src/README.md" \
@@ -132,6 +136,24 @@ Before modifying the specimen itself, copy it to another filename, such
 as:
 
     src/My-Style-Specimen.docx
+
+Release archive name
+--------------------
+The release archive name is configured in:
+
+    template-release-name.txt
+
+The default value is:
+
+    mytemplates
+
+You may edit this file to choose another name. For example, a value of:
+
+    organization-office-templates
+
+produces a release archive named:
+
+    organization-office-templates-v1.0.0.zip
 
 Next steps
 ----------

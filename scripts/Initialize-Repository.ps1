@@ -222,6 +222,10 @@ Copy-IfMissing `
     (Join-Path $publicRoot ".gitignore") `
     (Join-Path $script:Base ".gitignore")
 
+Copy-IfMissing `
+    (Join-Path $publicRoot "templates\template-release-name.txt") `
+    (Join-Path $script:Base "template-release-name.txt")
+
 # Project-managed files are refreshed whenever this script runs.
 Copy-ManagedFile `
     (Join-Path $publicRoot "src\README.md") `
@@ -255,6 +259,24 @@ Before modifying the specimen itself, copy it to another filename, such
 as:
 
     src/My-Style-Specimen.docx
+
+Release archive name
+--------------------
+The release archive name is configured in:
+
+    template-release-name.txt
+
+The default value is:
+
+    mytemplates
+
+You may edit this file to choose another name. For example, a value of:
+
+    organization-office-templates
+
+produces a release archive named:
+
+    organization-office-templates-v1.0.0.zip
 
 Next steps
 ----------
